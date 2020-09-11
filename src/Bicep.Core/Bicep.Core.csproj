@@ -16,4 +16,10 @@
     <PackageReference Include="System.Collections.Immutable" Version="1.7.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="4.7.2" />
+    <Reference Include="../../../bicep-types-poc/library/Bicep.Types.Arm/bin/Debug/netstandard2.0/Bicep.Types.dll" />
+    <Reference Include="../../../bicep-types-poc/library/Bicep.Types.Arm/bin/Debug/netstandard2.0/Bicep.Types.Arm.dll" />
+  </ItemGroup>
+
 </Project>
