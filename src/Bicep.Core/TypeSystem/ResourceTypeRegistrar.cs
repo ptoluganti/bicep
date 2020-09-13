@@ -10,21 +10,7 @@ namespace Bicep.Core.TypeSystem
 {
     public class ResourceTypeRegistrar : IResourceTypeRegistrar
     {
-        private static readonly IDictionary<string, ResourceTypeFactory?> TypeFactories = new Dictionary<string, ResourceTypeFactory?>(StringComparer.OrdinalIgnoreCase);
-
-        private static ResourceTypeFactory? GetTypeFactory(ResourceTypeReference typeReference)
-        {
-            var key = $"{typeReference.Namespace}@{typeReference.ApiVersion}";
-
-            if (!TypeFactories.TryGetValue(key, out var typeFactory))
-            {
-                var types = TypeLoader.LoadTypes(typeReference.Namespace, typeReference.ApiVersion);
-                typeFactory = types.Any() ? new ResourceTypeFactory(types, typeReference.ApiVersion) : null;
-                TypeFactories[key] = typeFactory;
-            }
-
-            return typeFactory;
-        }
+        private static readonly ResourceTypeFactory TypeFactory = new ResourceTypeFactory();
 
         public static IResourceTypeRegistrar Instance { get; } = new ResourceTypeRegistrar();
 
@@ -34,13 +20,13 @@ namespace Bicep.Core.TypeSystem
 
         private ResourceType? TryLookupResource(ResourceTypeReference typeReference)
         {
-            var typeFactory = GetTypeFactory(typeReference);
-            if (typeFactory == null)
+            var resourceType = TypeLoader.TryLoadResource(typeReference.FullyQualifiedType, typeReference.ApiVersion);
+            if (resourceType == null)
             {
                 return null;
             }
 
-            return typeFactory.TryGetResourceType(typeReference);
+            return TypeFactory.GetResourceType(resourceType);
         }
 
         public ResourceType LookupType(ResourceTypeReference typeReference)

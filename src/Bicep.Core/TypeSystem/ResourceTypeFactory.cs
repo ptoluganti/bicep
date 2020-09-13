@@ -9,25 +9,16 @@ namespace Bicep.Core.TypeSystem
 {
     public class ResourceTypeFactory
     {
-        private readonly Dictionary<Types.Concrete.TypeBase, TypeSymbol> typeCache;
-        private readonly IReadOnlyDictionary<string, Types.Concrete.ResourceType> resourceTypes;
-        private readonly string apiVersion;
+        private readonly IDictionary<Types.Concrete.TypeBase, TypeSymbol> typeCache;
 
-        public ResourceTypeFactory(IEnumerable<Types.Concrete.TypeBase> serializedTypes, string apiVersion)
+        public ResourceTypeFactory()
         {
-            typeCache = new Dictionary<Types.Concrete.TypeBase, TypeSymbol>();
-            resourceTypes = serializedTypes.OfType<Types.Concrete.ResourceType>().ToDictionary(x => x.Name ?? throw new ArgumentException(), StringComparer.OrdinalIgnoreCase);
-            this.apiVersion = apiVersion;
+            this.typeCache = new Dictionary<Types.Concrete.TypeBase, TypeSymbol>();
         }
 
-        public ResourceType? TryGetResourceType(ResourceTypeReference resourceTypeReference)
+        public ResourceType GetResourceType(Types.Concrete.ResourceType resourceType)
         {
-            if (!resourceTypes.TryGetValue(resourceTypeReference.FullyQualifiedType, out var resourceType))
-            {
-                return null;
-            }
-
-            return GetTypeSymbol(resourceType) as ResourceType;
+            return (ToTypeSymbol(resourceType) as ResourceType) ?? throw new ArgumentException();
         }
 
         private TypeSymbol GetTypeSymbol(Types.Concrete.TypeBase serializedType)
@@ -109,12 +100,13 @@ namespace Bicep.Core.TypeSystem
                 {
                     var name = resourceType.Name ?? throw new ArgumentException();
                     var body = (resourceType.Body?.Type as Types.Concrete.ObjectType) ?? throw new ArgumentException();
-                    
+
                     var properties = body.Properties ?? throw new ArgumentException();
                     var additionalProperties = body.AdditionalProperties != null ? GetTypeReference(body.AdditionalProperties) : null;
-                    var resourceTypeReference = ResourceTypeReference.TryParse($"{name}@{apiVersion}") ?? throw new ArgumentException();
 
-                    return new ResourceType(name, properties.Select(kvp => GetTypeProperty(kvp.Key, kvp.Value)), additionalProperties, resourceTypeReference);
+                    var resourceTypeReference = ResourceTypeReference.TryParse(name) ?? throw new ArgumentException();
+
+                    return new ResourceType(resourceTypeReference.FullyQualifiedType, properties.Select(kvp => GetTypeProperty(kvp.Key, kvp.Value)), additionalProperties, resourceTypeReference);
                 }
                 case Types.Concrete.UnionType unionType:
                 {
