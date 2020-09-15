@@ -20,8 +20,35 @@ namespace Bicep.Core.SemanticModel
 
         public ParameterDeclarationSyntax DeclaringParameter => (ParameterDeclarationSyntax) this.DeclaringSyntax;
 
-        // TODO if this is a string parameter with 'allowed' set, convert it to a union of string literal types
-        public override TypeSymbol Type => this.GetPrimitiveTypeByName(this.DeclaringParameter.Type.TypeName) ?? new ErrorTypeSymbol(DiagnosticBuilder.ForPosition(this.DeclaringParameter.Type).InvalidParameterType());
+        public TypeSymbol? TryGetPrimitiveType()
+            => this.GetPrimitiveTypeByName(this.DeclaringParameter.Type.TypeName);
+
+        public override TypeSymbol Type
+        {
+            get
+            {
+                var primitiveType = TryGetPrimitiveType();
+                if (primitiveType == null)
+                {
+                    return new ErrorTypeSymbol(DiagnosticBuilder.ForPosition(this.DeclaringParameter.Type).InvalidParameterType());
+                }
+
+                if (!object.ReferenceEquals(primitiveType, LanguageConstants.String))
+                {
+                    return primitiveType;
+                }
+
+                var allowedItemTypes = SyntaxHelper.TryGetAllowedItems(this.DeclaringParameter)?
+                    .Select(item => this.Context.TypeManager.GetTypeInfo(item));
+
+                if (allowedItemTypes == null || !allowedItemTypes.All(itemType => itemType is StringLiteralType))
+                {
+                    return primitiveType;
+                }
+
+                return UnionType.Create(allowedItemTypes);
+            }
+        }
 
         public SyntaxBase? Modifier { get; }
 
@@ -50,8 +77,12 @@ namespace Bicep.Core.SemanticModel
                     diagnostics = diagnostics.Concat(ValidateDefaultValue(defaultValueSyntax));
                     break;
 
-                case ObjectSyntax modifierSyntax when this.Type.TypeKind != TypeKind.Error:
-                    diagnostics = diagnostics.Concat(TypeValidator.GetExpressionAssignmentDiagnostics(this.Context.TypeManager, modifierSyntax, LanguageConstants.CreateParameterModifierType(this.Type)));
+                case ObjectSyntax modifierSyntax:
+                    if (this.Type.TypeKind != TypeKind.Error && this.TryGetPrimitiveType() is TypeSymbol primitiveType)
+                    {
+                        var modifierType = LanguageConstants.CreateParameterModifierType(primitiveType, this.Type);
+                        diagnostics = diagnostics.Concat(TypeValidator.GetExpressionAssignmentDiagnostics(this.Context.TypeManager, modifierSyntax, modifierType));
+                    }
                     break;
             }
 

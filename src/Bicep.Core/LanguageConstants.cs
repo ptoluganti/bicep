@@ -48,37 +48,32 @@ namespace Bicep.Core
 
         public static readonly string DeclarationTypesString = LanguageConstants.DeclarationTypes.Keys.ConcatString(ListSeparator);
 
-        public static TypeSymbol CreateParameterModifierType(TypeSymbol parameterType)
+        public static TypeSymbol CreateParameterModifierType(TypeSymbol primitiveType, TypeSymbol allowedValuesType)
         {
-            if (parameterType.TypeKind != TypeKind.Primitive)
-            {
-                throw new ArgumentException($"Modifiers are not supported for type '{parameterType.Name}'.");
-            }
-
-            return new NamedObjectType($"ParameterModifier_{parameterType.Name}", CreateParameterModifierProperties(parameterType), additionalPropertiesType: null);
+            return new NamedObjectType($"ParameterModifier<{allowedValuesType.Name}>", CreateParameterModifierProperties(primitiveType, allowedValuesType), additionalPropertiesType: null);
         }
 
-        private static IEnumerable<TypeProperty> CreateParameterModifierProperties(TypeSymbol parameterType)
+        private static IEnumerable<TypeProperty> CreateParameterModifierProperties(TypeSymbol primitiveType, TypeSymbol allowedValuesType)
         {
-            if (ReferenceEquals(parameterType, String) || ReferenceEquals(parameterType, Object))
+            if (ReferenceEquals(primitiveType, String) || ReferenceEquals(primitiveType, Object))
             {
                 // only string and object types have secure equivalents
                 yield return new TypeProperty("secure", Bool, TypePropertyFlags.Constant);
             }
 
             // default value is allowed to have expressions
-            yield return new TypeProperty("default", parameterType);
+            yield return new TypeProperty("default", allowedValuesType);
 
-            yield return new TypeProperty("allowed", new TypedArrayType(parameterType), TypePropertyFlags.Constant);
+            yield return new TypeProperty("allowed", new TypedArrayType(allowedValuesType), TypePropertyFlags.Constant);
 
-            if (ReferenceEquals(parameterType, Int))
+            if (ReferenceEquals(primitiveType, Int))
             {
                 // value constraints are valid on integer parameters only
                 yield return new TypeProperty("minValue", Int, TypePropertyFlags.Constant);
                 yield return new TypeProperty("maxValue", Int, TypePropertyFlags.Constant);
             }
 
-            if (ReferenceEquals(parameterType, String) || ReferenceEquals(parameterType, Array))
+            if (ReferenceEquals(primitiveType, String) || ReferenceEquals(primitiveType, Array))
             {
                 // strings and arrays can have length constraints
                 yield return new TypeProperty("minLength", Int, TypePropertyFlags.Constant);
