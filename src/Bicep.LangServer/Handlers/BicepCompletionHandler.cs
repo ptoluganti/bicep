@@ -13,6 +13,7 @@ using Bicep.LanguageServer.Completions;
 using Bicep.LanguageServer.Utils;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
+using CompletionContext = Bicep.LanguageServer.Completions.CompletionContext;
 
 namespace Bicep.LanguageServer.Handlers
 {
@@ -28,9 +29,18 @@ namespace Bicep.LanguageServer.Handlers
 
         public override Task<CompletionList> Handle(CompletionParams request, CancellationToken cancellationToken)
         {
-            var completions = GetKeywordCompletions()
-                .Concat(GetSymbolCompletions(request))
-                .Concat(GetPrimitiveTypeCompletions());
+            var compilationContext = this.compilationManager.GetCompilation(request.TextDocument.Uri);
+            if (compilationContext == null)
+            {
+                return Task.FromResult<CompletionList>(new CompletionList());
+            }
+
+            int offset = PositionHelper.GetOffset(compilationContext.LineStarts, request.Position);
+            var completionContext = CompletionContext.Create(compilationContext.Compilation.ProgramSyntax, offset);
+
+            var completions = GetKeywordCompletions(completionContext)
+                .Concat(GetSymbolCompletions(compilationContext,completionContext))
+                .Concat(GetPrimitiveTypeCompletions(completionContext));
             return Task.FromResult(new CompletionList(completions, isIncomplete: false));
         }
 
@@ -52,29 +62,32 @@ namespace Bicep.LanguageServer.Handlers
             TriggerCharacters = new Container<string>()
         };
 
-        private IEnumerable<CompletionItem> GetKeywordCompletions()
+        private IEnumerable<CompletionItem> GetKeywordCompletions(CompletionContext completionContext)
         {
-            yield return CreateKeywordCompletion(LanguageConstants.ParameterKeyword);
-            yield return CreateKeywordCompletion(LanguageConstants.VariableKeyword);
-            yield return CreateKeywordCompletion(LanguageConstants.ResourceKeyword);
-            yield return CreateKeywordCompletion(LanguageConstants.OutputKeyword);
+            if (completionContext.Kind.HasFlag(CompletionContextKind.Declaration))
+            {
+                yield return CreateKeywordCompletion(LanguageConstants.ParameterKeyword);
+                yield return CreateKeywordCompletion(LanguageConstants.VariableKeyword);
+                yield return CreateKeywordCompletion(LanguageConstants.ResourceKeyword);
+                yield return CreateKeywordCompletion(LanguageConstants.OutputKeyword);
+            }
         }
 
-        private IEnumerable<CompletionItem> GetSymbolCompletions(CompletionParams request)
+        private IEnumerable<CompletionItem> GetSymbolCompletions(CompilationContext compilationContext, CompletionContext completionContext)
         {
-            var context = this.compilationManager.GetCompilation(request.TextDocument.Uri);
-            if (context == null)
+            if (completionContext.Kind.HasFlag(CompletionContextKind.Declaration) == false)
             {
-                return Enumerable.Empty<CompletionItem>();
+                var model = compilationContext.Compilation.GetSemanticModel();
+                return GetAccessibleSymbols(model).Select(sym => sym.ToCompletionItem());
             }
 
-            var model = context.Compilation.GetSemanticModel();
-
-            return GetAccessibleSymbols(model)
-                .Select(sym => sym.ToCompletionItem());
+            return Enumerable.Empty<CompletionItem>();
         }
 
-        private IEnumerable<CompletionItem> GetPrimitiveTypeCompletions() => LanguageConstants.DeclarationTypes.Values.Select(CreateTypeCompletion);
+        private IEnumerable<CompletionItem> GetPrimitiveTypeCompletions(CompletionContext completionContext) =>
+            completionContext.Kind.HasFlag(CompletionContextKind.Declaration)
+                ? Enumerable.Empty<CompletionItem>()
+                : LanguageConstants.DeclarationTypes.Values.Select(CreateTypeCompletion);
 
         private IEnumerable<Symbol> GetAccessibleSymbols(SemanticModel model)
         {
