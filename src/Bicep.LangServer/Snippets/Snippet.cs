@@ -12,7 +12,7 @@ namespace Bicep.LanguageServer.Snippets
 {
     public sealed class Snippet
     {
-        private static readonly Regex PlaceholderPattern = new Regex(@"\$({(?<index>\d+)(:(?<name>\w+)})?)", RegexOptions.Compiled | RegexOptions.ExplicitCapture);
+        private static readonly Regex PlaceholderPattern = new Regex(@"\$({(?<index>\d+):(?<name>\w+)}|(?<index>\d+))", RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 
         public Snippet(string text)
         {
@@ -38,9 +38,8 @@ namespace Bicep.LanguageServer.Snippets
             // better to do it in-place
             var buffer = new StringBuilder(this.Text);
 
-            // placeholders are ordered by index
-            // to avoid recomputing spans, we will perform the replacements in reverse order
-            foreach (var placeholder in this.Placeholders.Reverse())
+            // to avoid recomputing spans, we will perform the replacements in reverse order by span position
+            foreach (var placeholder in this.Placeholders.OrderByDescending(p=>p.Span.Position))
             {
                 // remove original placeholder
                 buffer.Remove(placeholder.Span.Position, placeholder.Span.Length);
@@ -55,11 +54,19 @@ namespace Bicep.LanguageServer.Snippets
             return buffer.ToString();
         }
 
-        private static SnippetPlaceholder CreatePlaceholder(Match match) =>
-            new SnippetPlaceholder(
+        private static SnippetPlaceholder CreatePlaceholder(Match match)
+        {
+            var name = match.Groups["name"].Value;
+            if (string.IsNullOrEmpty(name))
+            {
+                name = null;
+            }
+
+            return new SnippetPlaceholder(
                 index: int.Parse(match.Groups["index"].Value),
-                name: match.Groups.ContainsKey("name") ? match.Groups["name"].Value : null,
+                name: name,
                 span: new TextSpan(match.Index, match.Length));
+        }
 
         private void Validate()
         {
