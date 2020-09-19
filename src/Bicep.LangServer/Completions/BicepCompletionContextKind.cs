@@ -5,7 +5,7 @@ using System;
 namespace Bicep.LanguageServer.Completions
 {
     [Flags]
-    public enum CompletionContextKind
+    public enum BicepCompletionContextKind
     {
         /// <summary>
         /// No specific information about the current completion context is available.

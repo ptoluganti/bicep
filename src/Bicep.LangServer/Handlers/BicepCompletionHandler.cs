@@ -13,7 +13,6 @@ using Bicep.LanguageServer.Completions;
 using Bicep.LanguageServer.Utils;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
-using CompletionContext = Bicep.LanguageServer.Completions.CompletionContext;
 
 namespace Bicep.LanguageServer.Handlers
 {
@@ -32,11 +31,11 @@ namespace Bicep.LanguageServer.Handlers
             var compilationContext = this.compilationManager.GetCompilation(request.TextDocument.Uri);
             if (compilationContext == null)
             {
-                return Task.FromResult<CompletionList>(new CompletionList());
+                return Task.FromResult(new CompletionList());
             }
 
             int offset = PositionHelper.GetOffset(compilationContext.LineStarts, request.Position);
-            var completionContext = CompletionContext.Create(compilationContext.Compilation.ProgramSyntax, offset);
+            var completionContext = BicepCompletionContext.Create(compilationContext.Compilation.ProgramSyntax, offset);
 
             var completions = GetKeywordCompletions(completionContext)
                 .Concat(GetSymbolCompletions(compilationContext,completionContext))
@@ -62,20 +61,20 @@ namespace Bicep.LanguageServer.Handlers
             TriggerCharacters = new Container<string>()
         };
 
-        private IEnumerable<CompletionItem> GetKeywordCompletions(CompletionContext completionContext)
+        private IEnumerable<CompletionItem> GetKeywordCompletions(BicepCompletionContext completionContext)
         {
-            if (completionContext.Kind.HasFlag(CompletionContextKind.Declaration))
+            if (completionContext.Kind.HasFlag(BicepCompletionContextKind.Declaration))
             {
                 yield return CreateKeywordCompletion(LanguageConstants.ParameterKeyword);
-                yield return CreateKeywordCompletion(LanguageConstants.VariableKeyword);
+                yield return CreateKeywordSnippetCompletion(LanguageConstants.VariableKeyword);
                 yield return CreateKeywordCompletion(LanguageConstants.ResourceKeyword);
                 yield return CreateKeywordCompletion(LanguageConstants.OutputKeyword);
             }
         }
 
-        private IEnumerable<CompletionItem> GetSymbolCompletions(CompilationContext compilationContext, CompletionContext completionContext)
+        private IEnumerable<CompletionItem> GetSymbolCompletions(CompilationContext compilationContext, BicepCompletionContext completionContext)
         {
-            if (completionContext.Kind.HasFlag(CompletionContextKind.Declaration) == false)
+            if (completionContext.Kind.HasFlag(BicepCompletionContextKind.Declaration) == false)
             {
                 var model = compilationContext.Compilation.GetSemanticModel();
                 return GetAccessibleSymbols(model).Select(sym => sym.ToCompletionItem());
@@ -84,8 +83,8 @@ namespace Bicep.LanguageServer.Handlers
             return Enumerable.Empty<CompletionItem>();
         }
 
-        private IEnumerable<CompletionItem> GetPrimitiveTypeCompletions(CompletionContext completionContext) =>
-            completionContext.Kind.HasFlag(CompletionContextKind.Declaration)
+        private IEnumerable<CompletionItem> GetPrimitiveTypeCompletions(BicepCompletionContext completionContext) =>
+            completionContext.Kind.HasFlag(BicepCompletionContextKind.Declaration)
                 ? Enumerable.Empty<CompletionItem>()
                 : LanguageConstants.DeclarationTypes.Values.Select(CreateTypeCompletion);
 
@@ -123,6 +122,18 @@ namespace Bicep.LanguageServer.Handlers
                 InsertText = keyword,
                 CommitCharacters = new Container<string>(" "),
                 Detail = keyword
+            };
+
+        private static CompletionItem CreateKeywordSnippetCompletion(string keyword) =>
+            new CompletionItem
+            {
+                Kind = CompletionItemKind.Snippet,
+                Label = keyword,
+                InsertTextFormat = InsertTextFormat.Snippet,
+                InsertText = "var ${1:Identifier} = $0",
+                //CommitCharacters = new Container<string>(" "),
+                Detail = $"{keyword} detail",
+                Documentation = new StringOrMarkupContent("var ${1:Identifier} = $0")
             };
 
         private static CompletionItem CreateTypeCompletion(TypeSymbol type) =>
