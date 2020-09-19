@@ -10,6 +10,7 @@ using Bicep.Core.SemanticModel;
 using Bicep.Core.TypeSystem;
 using Bicep.LanguageServer.CompilationManager;
 using Bicep.LanguageServer.Completions;
+using Bicep.LanguageServer.Snippets;
 using Bicep.LanguageServer.Utils;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
@@ -37,7 +38,7 @@ namespace Bicep.LanguageServer.Handlers
             int offset = PositionHelper.GetOffset(compilationContext.LineStarts, request.Position);
             var completionContext = BicepCompletionContext.Create(compilationContext.Compilation.ProgramSyntax, offset);
 
-            var completions = GetKeywordCompletions(completionContext)
+            var completions = GetDeclarationCompletions(completionContext)
                 .Concat(GetSymbolCompletions(compilationContext,completionContext))
                 .Concat(GetPrimitiveTypeCompletions(completionContext));
             return Task.FromResult(new CompletionList(completions, isIncomplete: false));
@@ -61,14 +62,25 @@ namespace Bicep.LanguageServer.Handlers
             TriggerCharacters = new Container<string>()
         };
 
-        private IEnumerable<CompletionItem> GetKeywordCompletions(BicepCompletionContext completionContext)
+        private IEnumerable<CompletionItem> GetDeclarationCompletions(BicepCompletionContext completionContext)
         {
             if (completionContext.Kind.HasFlag(BicepCompletionContextKind.Declaration))
             {
-                yield return CreateKeywordCompletion(LanguageConstants.ParameterKeyword);
-                yield return CreateKeywordSnippetCompletion(LanguageConstants.VariableKeyword);
-                yield return CreateKeywordCompletion(LanguageConstants.ResourceKeyword);
-                yield return CreateKeywordCompletion(LanguageConstants.OutputKeyword);
+                yield return CreateKeywordCompletion(LanguageConstants.ParameterKeyword, "Parameter keyword");
+                yield return CreateSnippetCompletion(LanguageConstants.ParameterKeyword, "param ${1:Identifier} ${2:Type}", "Parameter declaration");
+                yield return CreateSnippetCompletion(LanguageConstants.ParameterKeyword, "param ${1:Identifier} ${2:Type} = ${3:DefaultValue}", "Parameter declaration with default value");
+                yield return CreateSnippetCompletion(LanguageConstants.ParameterKeyword, "param ${1:Identifier} ${2:Type} {\r\n  default: $3\r\n  allowed: [\r\n    $4\r\n  ]\r\n}\"", "Parameter declaration with default and allowed values");
+                yield return CreateSnippetCompletion(LanguageConstants.ParameterKeyword, "param ${1:Identifier} ${2:Type} {\r\n  $0\r\n}", "Parameter declaration with options");
+                yield return CreateSnippetCompletion(LanguageConstants.ParameterKeyword, "param ${1:Identifier} string {\r\n  secure: true\r\n}", "Secure string parameter");
+
+                yield return CreateKeywordCompletion(LanguageConstants.VariableKeyword, "Variable keyword");
+                yield return CreateSnippetCompletion(LanguageConstants.VariableKeyword, "var ${1:Identifier} = $0", "Variable declaration");
+
+                yield return CreateKeywordCompletion(LanguageConstants.ResourceKeyword, "Resource keyword");
+                //yield return CreateSnippetCompletion(LanguageConstants.ResourceKeyword, "var ${1:Identifier} = $0", "Variable declaration");
+
+                yield return CreateKeywordCompletion(LanguageConstants.OutputKeyword, "Output keyword");
+                yield return CreateSnippetCompletion(LanguageConstants.OutputKeyword, "output ${1:Identifier} ${2:Type} = $0", "Output declaration");
             }
         }
 
@@ -113,7 +125,7 @@ namespace Bicep.LanguageServer.Handlers
             return accessibleSymbols.Values;
         }
 
-        private static CompletionItem CreateKeywordCompletion(string keyword) =>
+        private static CompletionItem CreateKeywordCompletion(string keyword, string detail) =>
             new CompletionItem
             {
                 Kind = CompletionItemKind.Keyword,
@@ -121,20 +133,25 @@ namespace Bicep.LanguageServer.Handlers
                 InsertTextFormat = InsertTextFormat.PlainText,
                 InsertText = keyword,
                 CommitCharacters = new Container<string>(" "),
-                Detail = keyword
+                Detail = detail
             };
 
-        private static CompletionItem CreateKeywordSnippetCompletion(string keyword) =>
-            new CompletionItem
+        private static CompletionItem CreateSnippetCompletion(string label, string snippet, string detail)
+        {
+            return new CompletionItem
             {
                 Kind = CompletionItemKind.Snippet,
-                Label = keyword,
+                Label = label,
                 InsertTextFormat = InsertTextFormat.Snippet,
-                InsertText = "var ${1:Identifier} = $0",
-                //CommitCharacters = new Container<string>(" "),
-                Detail = $"{keyword} detail",
-                Documentation = new StringOrMarkupContent("var ${1:Identifier} = $0")
+                InsertText = snippet,
+                Detail = detail,
+                Documentation = new StringOrMarkupContent(new MarkupContent
+                {
+                    Kind = MarkupKind.Markdown,
+                    Value = $"```bicep\n{new Snippet(snippet).FormatDocumentation()}\n```"
+                })
             };
+        }
 
         private static CompletionItem CreateTypeCompletion(TypeSymbol type) =>
             new CompletionItem
