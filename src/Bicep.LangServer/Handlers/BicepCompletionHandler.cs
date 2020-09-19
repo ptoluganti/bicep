@@ -77,7 +77,10 @@ namespace Bicep.LanguageServer.Handlers
                 yield return CreateSnippetCompletion(LanguageConstants.VariableKeyword, "var ${1:Identifier} = $0", "Variable declaration");
 
                 yield return CreateKeywordCompletion(LanguageConstants.ResourceKeyword, "Resource keyword");
-                //yield return CreateSnippetCompletion(LanguageConstants.ResourceKeyword, "var ${1:Identifier} = $0", "Variable declaration");
+                yield return CreateSnippetCompletion(LanguageConstants.ResourceKeyword, "resource ${1:Identifier} 'Microsoft.${2:Provider}/${3:Type}@${4:Version}' = {\r\n  name: $5\r\n  location: $6\r\n  properties: {\r\n    $0\r\n  }\r\n}", "Resource with defaults");
+                yield return CreateSnippetCompletion(LanguageConstants.ResourceKeyword, "resource ${1:Identifier} 'Microsoft.${2:Provider}/${3:ParentType}/${4:ChildType}@${5:Version}' = {\r\n  name: $6\r\n  properties: {\r\n    $0\r\n  }\r\n}", "Child Resource with defaults");
+                yield return CreateSnippetCompletion(LanguageConstants.ResourceKeyword, "resource ${1:Identifier} 'Microsoft.${2:Provider}/${3:Type}@${4:Version}' = {\r\n  name: $5\r\n  $0\r\n}\r\n", "Resource without defaults");
+                yield return CreateSnippetCompletion(LanguageConstants.ResourceKeyword, "resource ${1:Identifier} 'Microsoft.${2:Provider}/${3:ParentType}/${4:ChildType}@${5:Version}' = {\r\n  name: $6\r\n  $0\r\n}", "Child Resource without defaults");
 
                 yield return CreateKeywordCompletion(LanguageConstants.OutputKeyword, "Output keyword");
                 yield return CreateSnippetCompletion(LanguageConstants.OutputKeyword, "output ${1:Identifier} ${2:Type} = $0", "Output declaration");
